@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ViperOS Interactive Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-bg: #0A0A0F;
+      --secondary-bg: #111118;
+      --green: #00FF88;
+      --purple: #7B61FF;
+      --text: #E8E8F0;
+      --muted: #6B6B80;
+      --alert: #FF4466;
+      --glass: rgba(17, 17, 24, .62);
+      --glass-strong: rgba(22, 22, 33, .82);
+      --line: rgba(255, 255, 255, .1);
+      --radius: 14px;
+      --mono: 'JetBrains Mono', monospace;
+      --ui: Inter, 'IBM Plex Sans Arabic', system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; margin: 0; background: radial-gradient(circle at 50% 0%, #16221e 0%, #050507 52%, #000 100%); color: var(--text); font-family: var(--ui); overflow: hidden; }
+    button, input { font: inherit; color: inherit; }
+    button { cursor: pointer; border: 0; }
+
+    .stage {
+      width: 100vw;
+      height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      perspective: 1400px;
+    }
+
+    .phone {
+      position: relative;
+      width: min(390px, 100vw);
+      height: min(844px, 100vh);
+      overflow: hidden;
+      border-radius: 42px;
+      background: var(--primary-bg);
+      box-shadow: 0 40px 120px rgba(0, 0, 0, .72), 0 0 0 1px rgba(255,255,255,.08), inset 0 0 0 1px rgba(255,255,255,.05);
+      isolation: isolate;
+    }
+    .phone::before {
+      content: '';
+      position: absolute;
+      inset: 8px;
+      border-radius: 34px;
+      pointer-events: none;
+      border: 1px solid rgba(255,255,255,.06);
+      z-index: 30;
+    }
+    .dynamic-island {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      translate: -50% 0;
+      width: 116px;
+      height: 31px;
+      border-radius: 999px;
+      background: #030305;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), 0 2px 16px rgba(0,0,0,.65);
+      z-index: 31;
+      pointer-events: none;
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(1.02);
+      transition: opacity .45s ease, transform .45s ease;
+      padding: 54px 22px 22px;
+      overflow: hidden;
+    }
+    .screen.active { opacity: 1; pointer-events: auto; transform: scale(1); }
+
+    .wallpaper {
+      background:
+        radial-gradient(circle at 12% 12%, rgba(0,255,136,.2), transparent 29%),
+        radial-gradient(circle at 88% 20%, rgba(123,97,255,.28), transparent 35%),
+        radial-gradient(circle at 52% 100%, rgba(0,255,136,.14), transparent 38%),
+        linear-gradient(150deg, #07070b 0%, #111118 45%, #08080d 100%);
+    }
+    .wallpaper::before, .wallpaper::after {
+      content: '';
+      position: absolute;
+      border-radius: 999px;
+      filter: blur(12px);
+      opacity: .75;
+      pointer-events: none;
+    }
+    .wallpaper::before { width: 220px; height: 220px; right: -88px; top: 96px; background: radial-gradient(circle, rgba(123,97,255,.45), transparent 68%); }
+    .wallpaper::after { width: 260px; height: 260px; left: -120px; bottom: 10px; background: radial-gradient(circle, rgba(0,255,136,.24), transparent 70%); }
+
+    .glass {
+      background: linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.035));
+      border: 1px solid rgba(255,255,255,.1);
+      box-shadow: 0 18px 50px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: var(--radius);
+    }
+
+    .snake-logo { width: 116px; height: 116px; filter: drop-shadow(0 0 20px rgba(0,255,136,.75)); }
+    .snake-small { width: 78px; height: 78px; filter: drop-shadow(0 0 14px rgba(0,255,136,.65)); }
+    .snake-path { stroke: var(--green); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+    .snake-eye { fill: var(--green); }
+
+    /* Boot */
+    #boot { background: #000; display: grid; place-items: center; padding: 0 36px; }
+    .boot-core { width: 100%; text-align: center; transform: translateY(-12px); }
+    .boot-core .snake-logo { animation: bootPulse 1.7s ease-in-out infinite; }
+    .brand { margin: 20px 0 32px; font-size: 31px; font-weight: 900; letter-spacing: .18em; text-shadow: 0 0 22px rgba(0,255,136,.5); }
+    .loading { height: 5px; width: 100%; border-radius: 99px; background: rgba(0,255,136,.13); overflow: hidden; box-shadow: 0 0 18px rgba(0,255,136,.18); }
+    .loading span { display: block; height: 100%; width: 0%; border-radius: inherit; background: linear-gradient(90deg, var(--green), #9affd2); animation: load 4s ease forwards; box-shadow: 0 0 18px var(--green); }
+    .boot-log { margin-top: 30px; text-align: left; font-family: var(--mono); font-size: 13px; color: var(--green); line-height: 2; opacity: .94; }
+    .boot-log div { opacity: 0; transform: translateY(6px); animation: logIn .35s ease forwards; }
+    .boot-log div:nth-child(1) { animation-delay: .7s; } .boot-log div:nth-child(2) { animation-delay: 1.55s; } .boot-log div:nth-child(3) { animation-delay: 2.5s; }
+    @keyframes bootPulse { 50% { transform: scale(1.05); filter: drop-shadow(0 0 36px rgba(0,255,136,1)); } }
+    @keyframes load { to { width: 100%; } }
+    @keyframes logIn { to { opacity: 1; transform: translateY(0); } }
+
+    /* Shared status */
+    .status-bar { position: absolute; top: 18px; left: 24px; right: 24px; height: 24px; display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 700; z-index: 10; transition: color .25s ease; }
+    .status-right { display: flex; align-items: center; gap: 7px; color: var(--text); }
+    .privacy-on .status-bar { color: var(--alert); text-shadow: 0 0 14px rgba(255,68,102,.75); }
+    .signal { display: flex; gap: 2px; align-items: end; height: 13px; }
+    .signal i { width: 3px; background: currentColor; border-radius: 3px; } .signal i:nth-child(1){height:5px}.signal i:nth-child(2){height:8px}.signal i:nth-child(3){height:11px}.signal i:nth-child(4){height:13px}
+    .battery { width: 26px; height: 12px; border: 1.5px solid currentColor; border-radius: 4px; padding: 2px; position: relative; }
+    .battery::after { content: ''; position: absolute; right: -4px; top: 3px; width: 2px; height: 5px; border-radius: 0 2px 2px 0; background: currentColor; }
+    .battery span { display: block; width: 72%; height: 100%; background: var(--green); border-radius: 2px; }
+
+    /* Lock */
+    #lock { text-align: center; }
+    .lock-time { margin-top: 80px; font-size: 76px; line-height: .92; font-weight: 800; letter-spacing: -5px; }
+    .lock-date { margin-top: 13px; color: rgba(232,232,240,.76); font-weight: 600; }
+    .unlock-hint { position: absolute; left: 0; right: 0; bottom: 122px; font-size: 12px; color: var(--muted); font-family: var(--mono); }
+    .cli-pill { position: absolute; bottom: 48px; left: 50%; translate: -50% 0; min-width: 148px; height: 48px; border-radius: 999px; background: rgba(0,0,0,.28); border: 1px solid rgba(0,255,136,.58); color: var(--green); font-family: var(--mono); font-weight: 700; box-shadow: 0 0 26px rgba(0,255,136,.28), inset 0 0 18px rgba(0,255,136,.06); }
+    .home-indicator { position: absolute; bottom: 14px; left: 50%; translate: -50% 0; width: 132px; height: 5px; border-radius: 99px; background: rgba(255,255,255,.7); z-index: 20; }
+
+    /* Home */
+    #home { padding: 58px 19px 24px; }
+    .grid { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 19px 14px; margin-top: 18px; }
+    .app { text-align: center; user-select: none; }
+    .icon { width: 60px; height: 60px; margin: 0 auto 7px; border-radius: var(--radius); display: grid; place-items: center; background: linear-gradient(145deg, rgba(255,255,255,.12), rgba(255,255,255,.035)); border: 1px solid rgba(255,255,255,.09); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 10px 24px rgba(0,0,0,.24); color: var(--green); transition: transform .18s ease, box-shadow .18s ease; }
+    .app:active .icon, .app.longpress .icon { transform: scale(.92); box-shadow: 0 0 24px rgba(0,255,136,.35); }
+    .app-name { display: block; font-size: 11px; font-weight: 600; color: rgba(232,232,240,.88); white-space: nowrap; letter-spacing: -.2px; }
+    .icon svg { width: 28px; height: 28px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .icon.fill svg { fill: currentColor; stroke: none; }
+    .dock-wrap { position: absolute; left: 18px; right: 18px; bottom: 31px; z-index: 4; }
+    .search { height: 45px; display: flex; align-items: center; padding: 0 17px; color: var(--green); font-family: var(--mono); font-size: 13px; margin-bottom: 12px; box-shadow: 0 0 34px rgba(0,255,136,.08), inset 0 1px 0 rgba(255,255,255,.08); }
+    .dock { height: 88px; display: grid; grid-template-columns: repeat(4, 1fr); align-items: center; padding: 0 12px; }
+    .dock .app-name { display: none; }
+    .edge-trigger { position: absolute; right: 0; top: 270px; width: 4px; height: 118px; background: var(--green); border-radius: 9px 0 0 9px; box-shadow: 0 0 18px rgba(0,255,136,.85); z-index: 5; }
+
+    /* Panels */
+    .sheet { position: absolute; z-index: 25; pointer-events: none; opacity: 0; transition: transform .35s cubic-bezier(.2,.8,.2,1), opacity .25s ease; }
+    .sheet.open { pointer-events: auto; opacity: 1; }
+    #edgePanel { top: 0; right: 0; width: 286px; height: 100%; padding: 66px 16px 26px; transform: translateX(102%); background: rgba(10,10,15,.78); border-left: 1px solid rgba(0,255,136,.25); box-shadow: -20px 0 70px rgba(0,0,0,.55), -5px 0 28px rgba(0,255,136,.12); backdrop-filter: blur(24px); }
+    #edgePanel.open { transform: translateX(0); }
+    .panel-title { font-family: var(--mono); color: var(--green); font-weight: 700; font-size: 13px; margin: 16px 0 12px; }
+    .mini-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .mini-app { text-align: center; font-size: 10px; color: rgba(232,232,240,.82); }
+    .mini-app .icon { width: 48px; height: 48px; margin-bottom: 6px; }
+    .edge-cli { position: absolute; left: 16px; right: 16px; bottom: 32px; height: 50px; border-radius: 14px; border: 1px solid rgba(0,255,136,.55); background: rgba(0,255,136,.07); color: var(--green); font-family: var(--mono); font-weight: 800; box-shadow: 0 0 24px rgba(0,255,136,.18); }
+
+    #quickSettings { top: 0; left: 0; right: 0; height: 72%; padding: 62px 18px 20px; transform: translateY(-102%); border-radius: 0 0 30px 30px; background: rgba(17,17,24,.76); backdrop-filter: blur(24px); border-bottom: 1px solid rgba(255,255,255,.12); box-shadow: 0 28px 70px rgba(0,0,0,.5); }
+    #quickSettings.open { transform: translateY(0); }
+    .qs-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+    .qs-head h2 { margin: 0; font-size: 24px; letter-spacing: -.7px; }
+    .mono-green { color: var(--green); font-family: var(--mono); }
+    .toggles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 11px; }
+    .toggle { min-height: 74px; padding: 12px; text-align: left; border-radius: 18px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.09); color: var(--text); }
+    .toggle.active { color: #00140b; background: linear-gradient(135deg, var(--green), #87ffca); box-shadow: 0 0 28px rgba(0,255,136,.28); }
+    .toggle b { display: block; margin-top: 8px; font-size: 13px; }
+    .privacy-quick { width: 100%; margin-top: 14px; color: var(--text); }
+    .slider-row { margin-top: 16px; padding: 14px; }
+    .slider-row label { display: flex; justify-content: space-between; color: rgba(232,232,240,.78); font-size: 12px; font-weight: 700; }
+    input[type=range] { width: 100%; margin-top: 11px; accent-color: var(--green); }
+    .swipe-note { margin-top: 15px; text-align: center; color: var(--muted); font-family: var(--mono); font-size: 11px; }
+
+    #sysMonitor { top: 0; left: 0; right: 0; height: 72%; padding: 62px 18px 20px; transform: translateX(102%); background: rgba(0,0,0,.86); border-radius: 0 0 30px 30px; border-bottom: 1px solid rgba(0,255,136,.22); backdrop-filter: blur(18px); font-family: var(--mono); }
+    #sysMonitor.open { transform: translateX(0); opacity: 1; pointer-events: auto; }
+    .terminal-title { color: var(--green); font-weight: 800; margin-bottom: 18px; text-shadow: 0 0 12px rgba(0,255,136,.55); }
+    .metric { margin: 10px 0; font-size: 12px; color: rgba(232,232,240,.86); }
+    .metric-top { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .bar { height: 7px; background: rgba(255,255,255,.08); border-radius: 99px; overflow: hidden; }
+    .bar span { display: block; height: 100%; width: 20%; border-radius: inherit; background: linear-gradient(90deg, var(--green), var(--purple)); box-shadow: 0 0 14px rgba(0,255,136,.7); transition: width .45s ease; }
+    .net-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; margin-top: 14px; }
+    .net-grid div { padding: 11px; background: rgba(0,255,136,.055); border: 1px solid rgba(0,255,136,.14); border-radius: 12px; color: var(--green); font-size: 12px; }
+    .cursor::after { content: '█'; animation: blink 1s steps(1) infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* Terminal */
+    #terminal { z-index: 45; background: #000; padding: 58px 18px 18px; font-family: var(--mono); color: var(--green); transform: translateY(100%); transition: transform .35s ease, opacity .35s ease; }
+    #terminal.active { transform: translateY(0); opacity: 1; pointer-events: auto; }
+    .term-header { font-size: 12px; padding: 10px 12px; border: 1px solid rgba(0,255,136,.25); background: rgba(0,255,136,.05); border-radius: 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+    .term-close { color: var(--green); background: transparent; font-family: var(--mono); }
+    #termOutput { height: calc(100% - 72px); overflow: auto; font-size: 12px; line-height: 1.65; white-space: pre-wrap; }
+    .term-line { display: flex; align-items: center; gap: 6px; }
+    .prompt { color: #9affd2; }
+    #termInput { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--green); font-family: var(--mono); font-size: 12px; caret-color: var(--green); }
+
+    /* Popups and app screens */
+    .modal-backdrop { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; padding: 24px; background: rgba(0,0,0,.45); backdrop-filter: blur(8px); opacity: 0; pointer-events: none; transition: opacity .22s ease; }
+    .modal-backdrop.open { opacity: 1; pointer-events: auto; }
+    .password-card { width: 100%; padding: 20px; text-align: left; }
+    .password-card h3 { margin: 0 0 8px; font-size: 18px; }
+    .password-card p { color: var(--muted); margin: 0 0 16px; font-size: 12px; }
+    .password-card input { width: 100%; height: 46px; border-radius: 12px; border: 1px solid rgba(0,255,136,.32); outline: none; background: rgba(0,0,0,.33); padding: 0 13px; font-family: var(--mono); color: var(--green); }
+    .password-actions { display: flex; gap: 10px; margin-top: 13px; }
+    .btn { flex: 1; height: 42px; border-radius: 12px; background: rgba(255,255,255,.08); color: var(--text); }
+    .btn.primary { background: var(--green); color: #00140b; font-weight: 800; }
+    .error { color: var(--alert); font-size: 12px; margin-top: 9px; min-height: 16px; }
+
+    .context-menu { position: absolute; z-index: 42; width: 164px; padding: 8px; border: 1px solid rgba(0,255,136,.5); box-shadow: 0 0 28px rgba(0,255,136,.2), 0 18px 55px rgba(0,0,0,.55); opacity: 0; pointer-events: none; transform: translateY(8px) scale(.98); transition: .18s ease; }
+    .context-menu.open { opacity: 1; pointer-events: auto; transform: translateY(0) scale(1); }
+    .context-menu button { width: 100%; padding: 11px 12px; border-radius: 10px; text-align: left; background: transparent; color: var(--text); font-size: 13px; }
+    .context-menu button:hover { background: rgba(0,255,136,.1); color: var(--green); }
+
+    .app-screen { position: absolute; inset: 0; z-index: 18; padding: 58px 20px 24px; background: linear-gradient(160deg, #0a0a0f, #111118 58%, #08080d); transform: translateY(103%); opacity: 0; pointer-events: none; transition: .35s ease; }
+    .app-screen.open { transform: translateY(0); opacity: 1; pointer-events: auto; }
+    .app-top { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+    .back { width: 38px; height: 38px; border-radius: 12px; background: rgba(255,255,255,.08); color: var(--green); font-family: var(--mono); }
+    .app-top h1 { margin: 0; font-size: 25px; letter-spacing: -.8px; }
+    .settings-list { display: grid; gap: 10px; }
+    .row { min-height: 58px; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; }
+    .row small { color: var(--muted); display: block; margin-top: 3px; }
+    .switch { width: 54px; height: 31px; border-radius: 99px; background: rgba(255,255,255,.14); padding: 3px; transition: .2s; }
+    .switch i { display: block; width: 25px; height: 25px; background: white; border-radius: 50%; transition: .2s; }
+    .switch.on { background: var(--green); box-shadow: 0 0 24px rgba(0,255,136,.32); }
+    .switch.on i { transform: translateX(23px); background: #00140b; }
+    .sensor-list { display: none; margin-top: 18px; padding: 15px; border-color: rgba(255,68,102,.28); }
+    .sensor-list.show { display: block; }
+    .sensor-list h3 { color: var(--alert); margin: 0 0 12px; font-family: var(--mono); font-size: 14px; }
+    .sensor-list ul { margin: 0; padding-left: 18px; color: rgba(232,232,240,.8); line-height: 1.9; font-size: 13px; }
+    .about-card { text-align: center; padding: 28px 18px; }
+    .about-card h2 { margin: 14px 0 8px; font-size: 25px; }
+    .about-card p { margin: 9px 0; color: rgba(232,232,240,.74); }
+    .easter { margin-top: 18px; min-height: 30px; color: var(--green); font-family: var(--mono); text-shadow: 0 0 13px rgba(0,255,136,.55); }
+
+    .toast { position: absolute; z-index: 60; left: 50%; bottom: 126px; translate: -50% 16px; opacity: 0; min-width: 220px; text-align: center; padding: 12px 16px; border: 1px solid rgba(0,255,136,.3); color: var(--green); font-family: var(--mono); font-size: 12px; transition: .25s ease; pointer-events: none; }
+    .toast.show { opacity: 1; translate: -50% 0; }
+
+    @media (max-height: 760px) {
+      .phone { height: 100vh; border-radius: 0; }
+      .dynamic-island, .phone::before { display: none; }
+      .grid { gap: 13px 12px; }
+      .icon { width: 54px; height: 54px; }
+      .lock-time { margin-top: 54px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <main class="phone" id="phone">
+      <div class="dynamic-island"></div>
+
+      <section class="screen active" id="boot" aria-label="Boot screen">
+        <div class="boot-core">
+          <svg class="snake-logo" viewBox="0 0 120 120" aria-hidden="true"><path class="snake-path" d="M78 18C50 18 37 35 47 49c8 11 31 5 35 20 4 16-13 30-34 25-12-3-22-10-29-21"/><path class="snake-path" d="M78 18c11 5 19 13 22 25M84 31l13-3 4 13"/><circle class="snake-eye" cx="83" cy="28" r="3"/></svg>
+          <div class="brand">VIPER OS</div>
+          <div class="loading"><span></span></div>
+          <div class="boot-log"><div>SECURITY_CHECK ✓</div><div>ENCRYPTION ✓</div><div>SYSTEM_READY ✓</div></div>
+        </div>
+      </section>
+
+      <section class="screen wallpaper" id="lock" aria-label="Lock screen">
+        <div class="status-bar"><span class="status-time">09:41</span><div class="status-right"><div class="signal"><i></i><i></i><i></i><i></i></div><div class="battery"><span></span></div></div></div>
+        <div class="lock-time" id="lockTime">09:41</div>
+        <div class="lock-date" id="lockDate">Monday, May 18</div>
+        <div class="unlock-hint">swipe up to enter home</div>
+        <button class="cli-pill" id="lockCli">&gt; CLI_</button>
+        <div class="home-indicator"></div>
+      </section>
+
+      <section class="screen wallpaper" id="home" aria-label="Home screen">
+        <div class="status-bar"><span class="status-time">09:41</span><div class="status-right"><span id="privacyBadge" style="display:none">GHOST</span><div class="signal"><i></i><i></i><i></i><i></i></div><div class="battery"><span></span></div></div></div>
+        <div class="grid" id="appGrid"></div>
+        <div class="edge-trigger" id="edgeTrigger"></div>
+        <div class="dock-wrap"><div class="search glass">&gt; search_</div><div class="dock glass" id="dock"></div></div>
+        <div class="home-indicator"></div>
+      </section>
+
+      <aside class="sheet" id="edgePanel" aria-label="Edge panel">
+        <div class="panel-title">Recent</div><div class="mini-list" id="recentApps"></div>
+        <div class="panel-title">Quick</div><div class="mini-list" id="quickApps"></div>
+        <button class="edge-cli" id="edgeCli">&gt; CLI_</button>
+      </aside>
+
+      <section class="sheet" id="quickSettings" aria-label="Quick settings">
+        <div class="qs-head"><h2>Control Center</h2><span class="mono-green">VIPER_SEC</span></div>
+        <div class="toggles" id="toggles"></div>
+        <button class="row glass privacy-quick" id="quickPrivacy"><span><b>Privacy Mode</b><small>Open GHOST MODE controls</small></span><span class="mono-green">›</span></button>
+        <div class="slider-row glass"><label><span>Brightness</span><span>82%</span></label><input type="range" value="82"></div>
+        <div class="slider-row glass"><label><span>Volume</span><span>64%</span></label><input type="range" value="64"></div>
+        <div class="swipe-note">swipe left → system monitor</div>
+      </section>
+
+      <section class="sheet" id="sysMonitor" aria-label="System monitor">
+        <div class="terminal-title">&gt; VIPER_SYS_MONITOR</div>
+        <div id="metrics"></div>
+        <div class="net-grid"><div>UP <b id="upSpeed">0.8 MB/s</b></div><div>DOWN <b id="downSpeed">8.4 MB/s</b></div><div>TEMP <b id="temp">37°C</b></div><div>IP <b>10.8.0.24</b></div></div>
+        <p class="cursor" style="margin-top:16px">user@viper:~$ </p>
+      </section>
+
+      <section class="screen" id="terminal" aria-label="CLI terminal overlay">
+        <div class="term-header"><span>ViperOS v1.0 — user@viper:~$</span><button class="term-close" id="termClose">exit</button></div>
+        <div id="termOutput"></div>
+      </section>
+
+      <section class="app-screen" id="settingsScreen">
+        <div class="status-bar"><span class="status-time">09:41</span><div class="status-right"><div class="signal"><i></i><i></i><i></i><i></i></div><div class="battery"><span></span></div></div></div>
+        <div class="app-top"><button class="back" data-close="settingsScreen">‹</button><h1>Settings</h1></div>
+        <div class="settings-list">
+          <button class="row glass" id="openPrivacy"><span><b>Privacy Mode</b><small>Ghost Mode and sensor firewall</small></span><span class="mono-green">›</span></button>
+          <button class="row glass" id="openAbout"><span><b>About Viper</b><small>Version, kernel, developer mode</small></span><span class="mono-green">›</span></button>
+          <div class="row glass"><span><b>Appearance</b><small>Glass, glow, hacker minimal</small></span><span>Dark</span></div>
+        </div>
+      </section>
+
+      <section class="app-screen" id="privacyScreen">
+        <div class="status-bar"><span class="status-time">09:41</span><div class="status-right"><div class="signal"><i></i><i></i><i></i><i></i></div><div class="battery"><span></span></div></div></div>
+        <div class="app-top"><button class="back" data-close="privacyScreen">‹</button><h1>Privacy</h1></div>
+        <div class="row glass"><span><b>GHOST MODE</b><small>Block sensors and randomize identifiers</small></span><button class="switch" id="ghostSwitch"><i></i></button></div>
+        <div class="sensor-list glass" id="sensorList"><h3>&gt; BLOCKED_SENSORS</h3><ul><li>Camera access blocked</li><li>Microphone access blocked</li><li>GPS location spoofed</li><li>Bluetooth scanning disabled</li><li>Accelerometer isolated</li><li>Advertising ID randomized</li></ul></div>
+      </section>
+
+      <section class="app-screen" id="aboutScreen">
+        <div class="status-bar"><span class="status-time">09:41</span><div class="status-right"><div class="signal"><i></i><i></i><i></i><i></i></div><div class="battery"><span></span></div></div></div>
+        <div class="app-top"><button class="back" data-close="aboutScreen">‹</button><h1>About</h1></div>
+        <div class="about-card glass">
+          <svg class="snake-small" id="aboutLogo" viewBox="0 0 120 120" aria-label="Viper logo"><path class="snake-path" d="M78 18C50 18 37 35 47 49c8 11 31 5 35 20 4 16-13 30-34 25-12-3-22-10-29-21"/><path class="snake-path" d="M78 18c11 5 19 13 22 25M84 31l13-3 4 13"/><circle class="snake-eye" cx="83" cy="28" r="3"/></svg>
+          <h2>VIPER OS v1.0.0</h2>
+          <p>Built on AOSP | Linux Kernel 6.x</p>
+          <p>Developed by ViperOS</p>
+          <div class="easter" id="easter"></div>
+        </div>
+      </section>
+
+      <div class="modal-backdrop" id="passwordModal"><div class="password-card glass"><h3>Authenticate CLI</h3><p>Enter ViperOS secure shell password.</p><input id="passwordInput" type="password" placeholder="password" autocomplete="off"><div class="error" id="passwordError"></div><div class="password-actions"><button class="btn" id="cancelPassword">Cancel</button><button class="btn primary" id="submitPassword">Unlock</button></div></div></div>
+      <div class="context-menu glass" id="contextMenu"><button>Pin</button><button>Hide</button><button>Lock</button><button style="color:var(--alert)">Uninstall</button></div>
+      <div class="toast glass" id="toast">Action simulated</div>
+    </main>
+  </div>
+
+  <script>
+    const $ = (q, root = document) => root.querySelector(q);
+    const $$ = (q, root = document) => [...root.querySelectorAll(q)];
+    const phone = $('#phone');
+    const screens = $$('.screen');
+    const iconSvgs = {
+      phone:'<svg viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7l.5 2.6a2 2 0 0 1-.5 1.7L7.8 9.3a16 16 0 0 0 6.9 6.9l1.3-1.3a2 2 0 0 1 1.7-.5l2.6.5a2 2 0 0 1 1.7 2z"/></svg>',
+      msg:'<svg viewBox="0 0 24 24"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>',
+      browser:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg>',
+      camera:'<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+      code:'<svg viewBox="0 0 24 24"><path d="m8 9-4 3 4 3M16 9l4 3-4 3M14 4l-4 16"/></svg>',
+      tools:'<svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5 5L3 18v3h3l6.7-6.7a4 4 0 0 0 5-5l-2.4 2.4-2.8-2.8z"/></svg>',
+      settings:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 1 1 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3.1V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+      store:'<svg viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0"/></svg>',
+      gallery:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>',
+      calc:'<svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h.01M12 19h.01M16 19h.01"/></svg>',
+      clock:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+      contacts:'<svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+    };
+    const apps = [
+      ['Phone','phone','#00FF88'],['Messages','msg','#7B61FF'],['Viper Browser','browser','#00D1FF'],['Camera','camera','#E8E8F0'],
+      ['VS Code','code','#3EA6FF'],['Viper Tools','tools','#00FF88'],['Settings','settings','#9A9AAF'],['Play Store','store','#7BFFB8'],
+      ['Gallery','gallery','#FF61D8'],['Calculator','calc','#FFB84D'],['Clock','clock','#A78BFA'],['Contacts','contacts','#00FFC6']
+    ];
+    const recent = ['VS Code','Settings','Camera'];
+    const quick = ['Phone','Messages','Viper Browser','Viper Tools'];
+
+    function showScreen(id) { screens.forEach(s => s.classList.toggle('active', s.id === id)); closePanels(); }
+    function makeApp([name, icon, color], mini = false) {
+      const el = document.createElement('button'); el.className = mini ? 'mini-app' : 'app'; el.dataset.name = name; el.innerHTML = `<div class="icon" style="color:${color}">${iconSvgs[icon]}</div><span class="app-name">${name}</span>`;
+      el.addEventListener('click', () => openApp(name));
+      if (!mini) attachLongPress(el);
+      return el;
+    }
+    apps.forEach(a => $('#appGrid').appendChild(makeApp(a)));
+    quick.forEach(n => $('#dock').appendChild(makeApp(apps.find(a => a[0] === n))));
+    recent.forEach(n => $('#recentApps').appendChild(makeApp(apps.find(a => a[0] === n), true)));
+    quick.forEach(n => $('#quickApps').appendChild(makeApp(apps.find(a => a[0] === n), true)));
+
+    function openApp(name) {
+      toast(`${name} opened`);
+      closePanels();
+      if (name === 'Settings') $('#settingsScreen').classList.add('open');
+      if (name === 'Viper Tools') openTerminal();
+    }
+    $$('[data-close]').forEach(b => b.addEventListener('click', () => $('#' + b.dataset.close).classList.remove('open')));
+    $('#openPrivacy').onclick = () => { $('#privacyScreen').classList.add('open'); };
+    $('#quickPrivacy').onclick = () => { closePanels(); $('#privacyScreen').classList.add('open'); };
+    $('#openAbout').onclick = () => { $('#aboutScreen').classList.add('open'); };
+
+    setTimeout(() => showScreen('lock'), 4300);
+    let startY = 0, startX = 0;
+    phone.addEventListener('touchstart', e => { startY = e.touches[0].clientY; startX = e.touches[0].clientX; }, {passive:true});
+    phone.addEventListener('touchend', e => {
+      const t = e.changedTouches[0], dx = t.clientX - startX, dy = t.clientY - startY;
+      if ($('#lock').classList.contains('active') && dy < -55) showScreen('home');
+      else if ($('#home').classList.contains('active') && dy > 65 && startY < 120) $('#quickSettings').classList.add('open');
+      else if ($('#home').classList.contains('active') && dx < -45 && startX > 335) $('#edgePanel').classList.add('open');
+      else if ($('#quickSettings').classList.contains('open') && dx < -55) { $('#sysMonitor').classList.add('open'); $('#quickSettings').classList.remove('open'); }
+      else if (dx > 55 && $('#sysMonitor').classList.contains('open')) { $('#sysMonitor').classList.remove('open'); $('#quickSettings').classList.add('open'); }
+    }, {passive:true});
+    $('#edgeTrigger').onclick = () => $('#edgePanel').classList.add('open');
+    $('#home').addEventListener('dblclick', () => $('#quickSettings').classList.add('open'));
+
+    const toggles = [['WiFi','⌁',true],['Bluetooth','ᛒ',true],['Flashlight','◉',false],['Sound','♪',true],['Night','☾',false],['Airplane','✈',false]];
+    toggles.forEach(([name, sym, active]) => { const b = document.createElement('button'); b.className = `toggle ${active ? 'active':''}`; b.innerHTML = `<span>${sym}</span><b>${name}</b>`; b.onclick = () => { if (name === 'Night') toast('Night shield toggled'); if (name === 'Airplane') toast('Radio stack simulated'); b.classList.toggle('active'); }; $('#toggles').appendChild(b); });
+
+    function closePanels(){ $$('.sheet.open').forEach(p => p.classList.remove('open')); $('#contextMenu').classList.remove('open'); }
+    document.addEventListener('click', e => { if (!e.target.closest('#edgePanel,#edgeTrigger,#quickSettings,#sysMonitor,.context-menu,.app')) $('#contextMenu').classList.remove('open'); });
+
+    $('#lockCli').onclick = () => openPassword(); $('#edgeCli').onclick = openTerminal;
+    function openPassword(){ $('#passwordModal').classList.add('open'); $('#passwordInput').value=''; $('#passwordError').textContent=''; setTimeout(()=>$('#passwordInput').focus(),80); }
+    $('#cancelPassword').onclick = () => $('#passwordModal').classList.remove('open');
+    $('#submitPassword').onclick = submitPassword; $('#passwordInput').addEventListener('keydown', e => { if(e.key==='Enter') submitPassword(); });
+    function submitPassword(){ if($('#passwordInput').value === 'viper'){ $('#passwordModal').classList.remove('open'); openTerminal(); } else $('#passwordError').textContent = 'ACCESS_DENIED: password hint = viper'; }
+
+    function openTerminal(){ closePanels(); $('#terminal').classList.add('active'); renderPrompt(); setTimeout(()=>$('#termInput')?.focus(), 60); }
+    $('#termClose').onclick = () => $('#terminal').classList.remove('active');
+    const termOutput = $('#termOutput');
+    let history = ['ViperOS secure shell initialized. Type "help".'];
+    function renderPrompt(){ termOutput.innerHTML = history.map(x => `<div>${escapeHtml(x)}</div>`).join('') + '<div class="term-line"><span class="prompt">user@viper:~$</span><input id="termInput" autocomplete="off" /></div>'; termOutput.scrollTop = termOutput.scrollHeight; $('#termInput').addEventListener('keydown', terminalKey); }
+    function terminalKey(e){ if(e.key !== 'Enter') return; const cmd = e.target.value.trim(); history.push(`user@viper:~$ ${cmd}`); if(cmd === 'clear') history = []; else if(cmd === 'help') history.push('commands: help, clear, whoami, sysinfo, exit'); else if(cmd === 'whoami') history.push('viper_user'); else if(cmd === 'sysinfo') history.push('VIPER OS v1.0.0\nAOSP base: simulated\nLinux Kernel: 6.x\nShell: viper_cli\nPrivacy: ' + (phone.classList.contains('privacy-on') ? 'GHOST_MODE' : 'standard')); else if(cmd === 'exit') { $('#terminal').classList.remove('active'); return; } else if(cmd) history.push(`command not found: ${cmd}`); renderPrompt(); }
+    function escapeHtml(s){ return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+    function attachLongPress(el){ let timer; el.addEventListener('pointerdown', e => { timer = setTimeout(() => { el.classList.add('longpress'); showContext(e.clientX, e.clientY); }, 520); }); ['pointerup','pointerleave','pointercancel'].forEach(ev => el.addEventListener(ev, () => { clearTimeout(timer); setTimeout(()=>el.classList.remove('longpress'),180); })); }
+    function showContext(x,y){ const m = $('#contextMenu'); const r = phone.getBoundingClientRect(); m.style.left = Math.min(210, Math.max(18, x-r.left-20))+'px'; m.style.top = Math.min(650, Math.max(82, y-r.top-20))+'px'; m.classList.add('open'); }
+    $$('#contextMenu button').forEach(b => b.onclick = () => { toast(`${b.textContent} simulated`); $('#contextMenu').classList.remove('open'); });
+
+    $('#ghostSwitch').onclick = () => { const on = !$('#ghostSwitch').classList.contains('on'); $('#ghostSwitch').classList.toggle('on', on); $('#sensorList').classList.toggle('show', on); phone.classList.toggle('privacy-on', on); $('#privacyBadge').style.display = on ? 'inline' : 'none'; toast(on ? 'GHOST MODE ENABLED' : 'GHOST MODE DISABLED'); };
+    let logoTaps = 0; $('#aboutLogo').onclick = () => { logoTaps++; if(logoTaps >= 7) $('#easter').textContent = 'DEVELOPER MODE UNLOCKED'; else $('#easter').textContent = `tap ${7-logoTaps} more`; };
+
+    const metricDefs = [{id:'cpu', label:'CPU', unit:'%'},{id:'ram', label:'RAM', unit:'GB', max:12},{id:'storage', label:'Storage', unit:'GB', max:256},{id:'battery', label:'Battery', unit:'%'}];
+    metricDefs.forEach(m => $('#metrics').insertAdjacentHTML('beforeend', `<div class="metric"><div class="metric-top"><span>${m.label}</span><span id="${m.id}Val">--</span></div><div class="bar"><span id="${m.id}Bar"></span></div></div>`));
+    function updateMetrics(){ const vals = {cpu: Math.round(18+Math.random()*68), ram: (3+Math.random()*4.8).toFixed(1), storage: Math.round(112+Math.random()*20), battery: 86}; metricDefs.forEach(m => { const val = vals[m.id]; const pct = m.max ? val/m.max*100 : val; $(`#${m.id}Val`).textContent = val + m.unit; $(`#${m.id}Bar`).style.width = Math.min(100,pct)+'%'; }); $('#upSpeed').textContent = (Math.random()*4+0.2).toFixed(1)+' MB/s'; $('#downSpeed').textContent = (Math.random()*26+2).toFixed(1)+' MB/s'; $('#temp').textContent = Math.round(34+Math.random()*10)+'°C'; }
+    setInterval(updateMetrics, 1350); updateMetrics();
+    function tick(){ const now = new Date(); const time = now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); $$('.status-time').forEach(e => e.textContent = time); $('#lockTime').textContent = time; $('#lockDate').textContent = now.toLocaleDateString([], {weekday:'long', month:'long', day:'numeric'}); }
+    setInterval(tick, 1000); tick();
+    function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(window.toastTimer); window.toastTimer = setTimeout(()=>t.classList.remove('show'), 1400); }
+  </script>
+</body>
+</html>
